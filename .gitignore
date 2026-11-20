@@ -1,0 +1,13 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# CIFAR-10 compressed archive
+data/cifar-10-python.tar.gz
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env

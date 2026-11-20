@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Machine Unlearning Capstone Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-6">
+    <div class="max-w-5xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-indigo-400">Machine Unlearning Engine</h1>
+                <p class="text-sm text-slate-400">ResNet-18 | CIFAR-10 | First & Second-Order Erasure</p>
+            </div>
+            <div class="flex items-center space-x-3 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700">
+                <span class="text-xs font-medium text-slate-300">Mode:</span>
+                <button id="modeToggle" onclick="toggleMode()" class="px-3 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition hover:bg-indigo-500">Live Flask</button>
+            </div>
+        </header>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Retain Accuracy ($\mathcal{R}$)</p>
+                <h3 id="retainAcc" class="text-4xl font-extrabold text-emerald-400 mt-2">88.5%</h3>
+                <p class="text-xs text-slate-500 mt-1">Target: Stable (>85%)</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Forget Accuracy ($\mathcal{F}$)</p>
+                <h3 id="forgetAcc" class="text-4xl font-extrabold text-amber-400 mt-2">12.0%</h3>
+                <p class="text-xs text-slate-500 mt-1">Target: Random (~10%)</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">MIA ROC-AUC Score</p>
+                <h3 id="miaAuc" class="text-4xl font-extrabold text-indigo-400 mt-2">0.502</h3>
+                <p class="text-xs text-slate-500 mt-1">Target: 0.50 (Indistinguishable)</p>
+            </div>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- First Order Controls -->
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
+                <h2 class="text-lg font-semibold text-slate-200">First-Order Unlearning</h2>
+                <div class="flex space-x-4">
+                    <div class="w-1/2">
+                        <label class="text-xs text-slate-400">Epochs</label>
+                        <input id="foEpochs" type="number" value="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 mt-1 text-sm text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div class="w-1/2">
+                        <label class="text-xs text-slate-400">Learning Rate</label>
+                        <input id="foLr" type="text" value="0.0001" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 mt-1 text-sm text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <button onclick="runFirstOrder()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-600/20">Run Gradient Ascent / Descent</button>
+            </div>
+
+            <!-- Second Order Controls -->
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
+                <h2 class="text-lg font-semibold text-slate-200">Second-Order LiSSA ($\text{model.fc}$)</h2>
+                <div>
+                    <label class="text-xs text-slate-400">Hessian Damping Factor</label>
+                    <input id="soDamping" type="text" value="0.01" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 mt-1 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <button onclick="runSecondOrder()" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl transition shadow-lg shadow-cyan-600/20 mt-8">Run LiSSA Influence Update</button>
+            </div>
+        </div>
+
+        <!-- Terminal Log Viewer -->
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-3">
+            <div class="flex justify-between items-center">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Execution Logs</h2>
+                <button onclick="clearLogs()" class="text-xs text-slate-500 hover:text-slate-300">Clear Logs</button>
+            </div>
+            <div id="terminal" class="bg-slate-950 font-mono text-xs text-emerald-400 p-4 rounded-xl h-40 overflow-y-auto border border-slate-800/80 space-y-1">
+                <div>[System] Dashboard initialized. Ready for commands...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let isLiveMode = true;
+        const apiUrl = "http://127.0.0.1:5000";
+
+        function log(message) {
+            const term = document.getElementById('terminal');
+            const time = new Date().toLocaleTimeString();
+            term.innerHTML += `<div>[${time}] ${message}</div>`;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('terminal').innerHTML = '';
+        }
+
+        function toggleMode() {
+            isLiveMode = !isLiveMode;
+            const btn = document.getElementById('modeToggle');
+            if (isLiveMode) {
+                btn.textContent = "Live Flask";
+                btn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition hover:bg-indigo-500";
+                log("Switched to Live Flask API mode.");
+            } else {
+                btn.textContent = "Simulation Mode";
+                btn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-amber-600 text-white transition hover:bg-amber-500";
+                log("Switched to Simulation mode.");
+            }
+        }
+
+        async function updateMetricsUI(metrics) {
+            document.getElementById('retainAcc').textContent = metrics.retain_accuracy + '%';
+            document.getElementById('forgetAcc').textContent = metrics.forget_accuracy + '%';
+            document.getElementById('miaAuc').textContent = metrics.mia_roc_auc;
+        }
+
+        async function runFirstOrder() {
+            const epochs = document.getElementById('foEpochs').value;
+            const lr = document.getElementById('foLr').value;
+            log(`Triggering First-Order unlearning (epochs: ${epochs}, lr: ${lr})...`);
+
+            if (isLiveMode) {
+                try {
+                    const res = await fetch(`${apiUrl}/unlearn/first-order`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ epochs: parseInt(epochs), lr: parseFloat(lr) })
+                    });
+                    const data = await res.json();
+                    updateMetricsUI(data.metrics);
+                    log(`Success: ${data.message}`);
+                } catch (err) {
+                    log(`Error: Could not connect to Flask server at ${apiUrl}. Check if app.py is running.`);
+                }
+            } else {
+                setTimeout(() => {
+                    updateMetricsUI({ retain_accuracy: 89.2, forget_accuracy: 11.5, mia_roc_auc: 0.501 });
+                    log("Simulation complete. First-order unlearning executed.");
+                }, 600);
+            }
+        }
+
+        async function runSecondOrder() {
+            const damping = document.getElementById('soDamping').value;
+            log(`Triggering Second-Order LiSSA update (damping: ${damping})...`);
+
+            if (isLiveMode) {
+                try {
+                    const res = await fetch(`${apiUrl}/unlearn/second-order`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ damping: parseFloat(damping) })
+                    });
+                    const data = await res.json();
+                    updateMetricsUI(data.metrics);
+                    log(`Success: ${data.message}`);
+                } catch (err) {
+                    log(`Error: Could not connect to Flask server at ${apiUrl}. Check if app.py is running.`);
+                }
+            } else {
+                setTimeout(() => {
+                    updateMetricsUI({ retain_accuracy: 88.9, forget_accuracy: 12.8, mia_roc_auc: 0.498 });
+                    log("Simulation complete. Second-order LiSSA executed on model.fc.");
+                }, 600);
+            }
+        }
+    </script>
+</body>
+</html>
