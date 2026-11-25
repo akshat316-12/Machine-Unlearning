@@ -1,172 +1,783 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Machine Unlearning Capstone Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-6">
-    <div class="max-w-5xl mx-auto space-y-6">
-        
-        <!-- Header -->
-        <header class="flex justify-between items-center bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight text-indigo-400">Machine Unlearning Engine</h1>
-                <p class="text-sm text-slate-400">ResNet-18 | CIFAR-10 | First & Second-Order Erasure</p>
-            </div>
-            <div class="flex items-center space-x-3 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700">
-                <span class="text-xs font-medium text-slate-300">Mode:</span>
-                <button id="modeToggle" onclick="toggleMode()" class="px-3 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition hover:bg-indigo-500">Live Flask</button>
-            </div>
-        </header>
-
-        <!-- Metrics Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
-                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Retain Accuracy ($\mathcal{R}$)</p>
-                <h3 id="retainAcc" class="text-4xl font-extrabold text-emerald-400 mt-2">88.5%</h3>
-                <p class="text-xs text-slate-500 mt-1">Target: Stable (>85%)</p>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
-                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Forget Accuracy ($\mathcal{F}$)</p>
-                <h3 id="forgetAcc" class="text-4xl font-extrabold text-amber-400 mt-2">12.0%</h3>
-                <p class="text-xs text-slate-500 mt-1">Target: Random (~10%)</p>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
-                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">MIA ROC-AUC Score</p>
-                <h3 id="miaAuc" class="text-4xl font-extrabold text-indigo-400 mt-2">0.502</h3>
-                <p class="text-xs text-slate-500 mt-1">Target: 0.50 (Indistinguishable)</p>
-            </div>
-        </div>
-
-        <!-- Controls Section -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- First Order Controls -->
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
-                <h2 class="text-lg font-semibold text-slate-200">First-Order Unlearning</h2>
-                <div class="flex space-x-4">
-                    <div class="w-1/2">
-                        <label class="text-xs text-slate-400">Epochs</label>
-                        <input id="foEpochs" type="number" value="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 mt-1 text-sm text-white focus:outline-none focus:border-indigo-500">
-                    </div>
-                    <div class="w-1/2">
-                        <label class="text-xs text-slate-400">Learning Rate</label>
-                        <input id="foLr" type="text" value="0.0001" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 mt-1 text-sm text-white focus:outline-none focus:border-indigo-500">
-                    </div>
-                </div>
-                <button onclick="runFirstOrder()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-600/20">Run Gradient Ascent / Descent</button>
-            </div>
-
-            <!-- Second Order Controls -->
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
-                <h2 class="text-lg font-semibold text-slate-200">Second-Order LiSSA ($\text{model.fc}$)</h2>
-                <div>
-                    <label class="text-xs text-slate-400">Hessian Damping Factor</label>
-                    <input id="soDamping" type="text" value="0.01" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 mt-1 text-sm text-white focus:outline-none focus:border-indigo-500">
-                </div>
-                <button onclick="runSecondOrder()" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl transition shadow-lg shadow-cyan-600/20 mt-8">Run LiSSA Influence Update</button>
-            </div>
-        </div>
-
-        <!-- Terminal Log Viewer -->
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-3">
-            <div class="flex justify-between items-center">
-                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Execution Logs</h2>
-                <button onclick="clearLogs()" class="text-xs text-slate-500 hover:text-slate-300">Clear Logs</button>
-            </div>
-            <div id="terminal" class="bg-slate-950 font-mono text-xs text-emerald-400 p-4 rounded-xl h-40 overflow-y-auto border border-slate-800/80 space-y-1">
-                <div>[System] Dashboard initialized. Ready for commands...</div>
-            </div>
-        </div>
-
-    </div>
-
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Machine Unlearning Instrumentation Console</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet"/>
     <script>
-        let isLiveMode = true;
-        const apiUrl = "http://127.0.0.1:5000";
-
-        function log(message) {
-            const term = document.getElementById('terminal');
-            const time = new Date().toLocaleTimeString();
-            term.innerHTML += `<div>[${time}] ${message}</div>`;
-            term.scrollTop = term.scrollHeight;
-        }
-
-        function clearLogs() {
-            document.getElementById('terminal').innerHTML = '';
-        }
-
-        function toggleMode() {
-            isLiveMode = !isLiveMode;
-            const btn = document.getElementById('modeToggle');
-            if (isLiveMode) {
-                btn.textContent = "Live Flask";
-                btn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition hover:bg-indigo-500";
-                log("Switched to Live Flask API mode.");
-            } else {
-                btn.textContent = "Simulation Mode";
-                btn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-amber-600 text-white transition hover:bg-amber-500";
-                log("Switched to Simulation mode.");
-            }
-        }
-
-        async function updateMetricsUI(metrics) {
-            document.getElementById('retainAcc').textContent = metrics.retain_accuracy + '%';
-            document.getElementById('forgetAcc').textContent = metrics.forget_accuracy + '%';
-            document.getElementById('miaAuc').textContent = metrics.mia_roc_auc;
-        }
-
-        async function runFirstOrder() {
-            const epochs = document.getElementById('foEpochs').value;
-            const lr = document.getElementById('foLr').value;
-            log(`Triggering First-Order unlearning (epochs: ${epochs}, lr: ${lr})...`);
-
-            if (isLiveMode) {
-                try {
-                    const res = await fetch(`${apiUrl}/unlearn/first-order`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ epochs: parseInt(epochs), lr: parseFloat(lr) })
-                    });
-                    const data = await res.json();
-                    updateMetricsUI(data.metrics);
-                    log(`Success: ${data.message}`);
-                } catch (err) {
-                    log(`Error: Could not connect to Flask server at ${apiUrl}. Check if app.py is running.`);
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        canvas: '#fbf9f5',
+                        creme: {
+                            50: '#fdfcf9',
+                            100: '#f8f5ee',
+                            200: '#f2eee3',
+                            300: '#e7e0d0',
+                            400: '#d5cbb8',
+                        },
+                        stone: {
+                            850: '#1f1c19',
+                            900: '#1c1917',
+                            950: '#141210',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Geist', 'Inter', 'system-ui', 'sans-serif'],
+                        mono: ['Geist Mono', 'JetBrains Mono', 'monospace']
+                    }
                 }
-            } else {
-                setTimeout(() => {
-                    updateMetricsUI({ retain_accuracy: 89.2, forget_accuracy: 11.5, mia_roc_auc: 0.501 });
-                    log("Simulation complete. First-order unlearning executed.");
-                }, 600);
-            }
-        }
-
-        async function runSecondOrder() {
-            const damping = document.getElementById('soDamping').value;
-            log(`Triggering Second-Order LiSSA update (damping: ${damping})...`);
-
-            if (isLiveMode) {
-                try {
-                    const res = await fetch(`${apiUrl}/unlearn/second-order`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ damping: parseFloat(damping) })
-                    });
-                    const data = await res.json();
-                    updateMetricsUI(data.metrics);
-                    log(`Success: ${data.message}`);
-                } catch (err) {
-                    log(`Error: Could not connect to Flask server at ${apiUrl}. Check if app.py is running.`);
-                }
-            } else {
-                setTimeout(() => {
-                    updateMetricsUI({ retain_accuracy: 88.9, forget_accuracy: 12.8, mia_roc_auc: 0.498 });
-                    log("Simulation complete. Second-order LiSSA executed on model.fc.");
-                }, 600);
             }
         }
     </script>
+    <style>
+        body {
+            font-family: 'Geist', 'Inter', sans-serif;
+            background-color: #fbf9f5;
+            color: #1c1917;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        ::selection {
+            background-color: #1c1917;
+            color: #faf8f5;
+        }
+
+        #terminal::-webkit-scrollbar {
+            width: 5px;
+        }
+        #terminal::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #terminal::-webkit-scrollbar-thumb {
+            background: #d5cfc2;
+            border-radius: 3px;
+        }
+        #terminal::-webkit-scrollbar-thumb:hover {
+            background: #b8b0a1;
+        }
+
+        .metric-bar {
+            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+        }
+
+        /* Color brighten hover effect on cards */
+        .card-hover {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .card-hover:hover {
+            filter: brightness(1.03);
+            border-color: #c7bead;
+            box-shadow: 0 6px 16px -3px rgba(28, 25, 23, 0.08);
+            transform: translateY(-1px);
+        }
+
+        /* Running process disabled state: greyed out with universal ban cursor */
+        button:disabled {
+            cursor: not-allowed !important;
+            opacity: 0.45 !important;
+            filter: grayscale(85%) !important;
+            pointer-events: auto !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        button:disabled * {
+            cursor: not-allowed !important;
+        }
+        button:disabled:hover {
+            cursor: not-allowed !important;
+            opacity: 0.45 !important;
+            filter: grayscale(85%) !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-[#fbf9f5] text-stone-900 selection:bg-stone-900 selection:text-white">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-10">
+
+    <!-- Top Architectural Header -->
+    <header class="border-b border-[#e7e1d4] pb-8">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+            <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <span class="font-mono text-xs tracking-widest uppercase text-emerald-900 flex items-center gap-2 font-bold bg-[#eaf3ec] px-3 py-1 rounded-md border border-[#c7dfcb]">
+                        <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+                        Instrumentation Active
+                    </span>
+                    <span class="text-stone-300 font-mono text-sm font-bold">/</span>
+                    <span class="font-mono text-xs tracking-wider uppercase text-stone-600 font-bold">Capstone Lab // SYS-4050</span>
+                    <span class="text-stone-300 font-mono text-sm font-bold">/</span>
+                    <span class="font-mono text-xs text-stone-500 font-bold">FYP-2025</span>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-bold tracking-tight text-stone-950 flex items-baseline gap-3">
+                    Machine Unlearning Console
+                    <span class="text-xs font-mono text-stone-500 font-semibold">v2.4.0</span>
+                </h1>
+                <div class="text-sm font-mono text-stone-700 flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1 font-medium" id="deviceSubtitle">
+                    <span>ARCHITECTURE: <span class="text-stone-950 font-bold">ResNet-18</span></span>
+                    <span class="text-stone-300">•</span>
+                    <span>DATASET: <span class="text-stone-950 font-bold">CIFAR-10 (5,000 samples)</span></span>
+                    <span class="text-stone-300">•</span>
+                    <span>ACCELERATOR: <span class="text-stone-950 font-bold">NVIDIA GeForce RTX 4050</span></span>
+                    <span class="text-stone-300">•</span>
+                    <span>TARGET: <span class="text-rose-700 font-bold">500 Forget Samples</span></span>
+                </div>
+            </div>
+
+            <!-- Global Action Controls -->
+            <div class="flex items-center gap-3 self-start lg:self-end">
+                <div class="inline-flex items-center bg-[#f0ecdf] border border-[#ded7c7] rounded-md p-1 text-xs font-mono font-bold">
+                    <button class="px-4 py-1.5 font-bold rounded bg-[#fdfcf9] text-stone-950 shadow-xs transition-all cursor-pointer" id="modeToggle" onclick="toggleMode()">
+                        Live Flask
+                    </button>
+                </div>
+                <button class="px-4 py-2 text-xs font-mono text-white bg-rose-600 hover:bg-rose-500 active:bg-rose-700 rounded-md shadow-xs transition-all flex items-center gap-2 cursor-pointer font-bold border border-rose-700/20" id="resetBtn" onclick="resetModel()">
+                    <span class="w-2 h-2 rounded-full bg-white/90"></span>
+                    Reset Baseline
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Core Metrics Panel: Warm Creme & Ivory Cards with Bold High-Visibility Text -->
+    <section class="space-y-3">
+        <div class="flex items-center justify-between pb-1">
+            <span class="text-xs font-mono tracking-widest uppercase text-stone-800 font-bold">Telemetry Evaluation Metrics</span>
+            <span class="text-xs font-mono text-stone-600 font-semibold">Reference Benchmark Targets</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <!-- Metric 1: Retain Accuracy (Creme Box) -->
+            <div class="card-hover cursor-default bg-[#f6f3eb] border border-[#e4ded0] p-6 rounded-xl shadow-xs flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between min-h-[32px]">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-600" id="retainDot"></span>
+                            <span class="text-sm font-mono tracking-wider uppercase text-stone-700 font-bold">Retain Accuracy (<span class="text-emerald-800 font-extrabold">ƒ_R</span>)</span>
+                        </div>
+                        <span class="text-xs font-mono px-2.5 py-1 rounded border border-[#c6dfcb] text-emerald-900 bg-[#eaf3ec] font-bold" id="retainBadge">
+                            High Utility (≥99%)
+                        </span>
+                    </div>
+                    <div class="flex items-baseline justify-between min-h-[64px] pt-3">
+                        <div class="text-5xl md:text-6xl font-semibold font-mono tracking-tight text-emerald-800" id="retainAcc">
+                            99.44%
+                        </div>
+                        <span class="text-xs font-mono text-stone-600 font-bold">Target ≥ 99.0%</span>
+                    </div>
+                </div>
+                <div class="pt-4">
+                    <div class="w-full h-2 bg-[#e8e2d4] rounded-full relative overflow-hidden">
+                        <div class="metric-bar h-full bg-emerald-700 rounded-full" id="retainBar" style="width: 99.44%;"></div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs font-mono text-stone-600 pt-2 font-semibold">
+                        <span>Cohort: 4,500 samples</span>
+                        <span class="text-stone-800 font-bold">Utility Preserved</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metric 2: Forget Accuracy (Warm Cream Box) -->
+            <div class="card-hover cursor-default bg-[#f9f6ef] border border-[#e7e1d3] p-6 rounded-xl shadow-xs flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between min-h-[32px]">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-600" id="forgetDot"></span>
+                            <span class="text-sm font-mono tracking-wider uppercase text-stone-700 font-bold">Forget Accuracy (<span class="text-emerald-800 font-extrabold">ƒ_F</span>)</span>
+                        </div>
+                        <span class="text-xs font-mono px-2.5 py-1 rounded border border-[#c6dfcb] text-emerald-900 bg-[#eaf3ec] font-bold" id="forgetBadge">
+                            Erased (10–25%)
+                        </span>
+                    </div>
+                    <div class="flex items-baseline justify-between min-h-[64px] pt-3">
+                        <div class="text-5xl md:text-6xl font-semibold font-mono tracking-tight text-emerald-800" id="forgetAcc">
+                            23%
+                        </div>
+                        <span class="text-xs font-mono text-stone-600 font-bold">Target: 10–25%</span>
+                    </div>
+                </div>
+                <div class="pt-4">
+                    <div class="w-full h-2 bg-[#e8e2d4] rounded-full relative overflow-hidden">
+                        <div class="metric-bar h-full bg-emerald-700 rounded-full" id="forgetBar" style="width: 23%;"></div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs font-mono text-stone-600 pt-2 font-semibold">
+                        <span>Target: 500 samples</span>
+                        <span class="text-stone-800 font-bold">Suppression Active</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metric 3: MIA Privacy ROC-AUC (Alabaster Box) -->
+            <div class="card-hover cursor-default bg-[#f5f2e9] border border-[#e3dccf] p-6 rounded-xl shadow-xs flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between min-h-[32px]">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-amber-500" id="miaDot"></span>
+                            <span class="text-sm font-mono tracking-wider uppercase text-stone-700 font-bold">MIA Privacy ROC-AUC</span>
+                        </div>
+                        <span class="text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold" id="miaBadge">
+                            Acceptable Scar (0.30–0.42)
+                        </span>
+                    </div>
+                    <div class="flex items-baseline justify-between min-h-[64px] pt-3">
+                        <div class="text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800" id="miaAuc">
+                            0.327
+                        </div>
+                        <span class="text-xs font-mono text-stone-600 font-bold">Target: 0.42–0.52</span>
+                    </div>
+                </div>
+                <div class="pt-4">
+                    <div class="w-full h-2 bg-[#e8e2d4] rounded-full relative overflow-hidden">
+                        <div class="metric-bar h-full bg-amber-600 rounded-full" id="miaBar" style="width: 32.7%;"></div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs font-mono text-stone-600 pt-2 font-semibold">
+                        <span>Audit: Shadow Attacker</span>
+                        <span class="text-stone-800 font-bold">Auditor Inconclusive</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Optimization Workbench: Refined Warm Off-White Boxes -->
+    <section class="space-y-4">
+        <div class="flex items-center justify-between pb-1">
+            <span class="text-xs font-mono tracking-widest uppercase text-stone-800 font-bold">Unlearning Optimization Pipelines</span>
+            <span class="text-xs font-mono text-stone-600 font-semibold">First-Order GA/GD vs. Second-Order LiSSA</span>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <!-- Algorithm 1: First-Order Unlearning (Creme Card) -->
+            <div class="card-hover bg-[#f8f6f0] border border-[#e5dfd2] p-6 rounded-xl space-y-5 shadow-xs">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-stone-900"></span>
+                            <h3 class="text-base font-bold tracking-tight text-stone-950">First-Order Optimization</h3>
+                        </div>
+                        <p class="text-sm text-stone-700 mt-1.5 leading-relaxed">
+                            Simultaneous retain gradient descent with bounded forget ascent and targeted noise scrubbing.
+                        </p>
+                    </div>
+                    <span class="text-xs font-mono text-stone-900 bg-[#efebe0] border border-[#ddd6c6] px-2.5 py-1 rounded whitespace-nowrap font-bold">
+                        GA / GD REGIME
+                    </span>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 pt-1">
+                    <div>
+                        <label class="block text-xs font-mono uppercase tracking-wider text-stone-700 mb-1.5 font-bold">Epochs [n]</label>
+                        <input class="w-full bg-[#fdfcf9] border border-[#dcd6c7] rounded px-3.5 py-2 text-sm font-mono font-bold text-stone-950 focus:ring-1 focus:ring-stone-900 focus:border-stone-900 focus:outline-none transition shadow-2xs" id="foEpochs" max="10" min="1" type="number" value="2"/>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-mono uppercase tracking-wider text-stone-700 mb-1.5 font-bold">Learning Rate [η]</label>
+                        <input class="w-full bg-[#fdfcf9] border border-[#dcd6c7] rounded px-3.5 py-2 text-sm font-mono font-bold text-stone-950 focus:ring-1 focus:ring-stone-900 focus:border-stone-900 focus:outline-none transition shadow-2xs" id="foLr" type="text" value="0.015"/>
+                    </div>
+                </div>
+                
+                <div class="pt-1">
+                    <button class="w-full py-3 px-4 bg-stone-900 hover:bg-stone-800 hover:brightness-110 active:bg-black text-[#faf8f5] font-mono text-sm tracking-wider uppercase rounded transition-all duration-200 shadow-xs flex items-center justify-center gap-2 cursor-pointer font-bold" id="foBtn" onclick="runFirstOrder()">
+                        <svg class="w-4 h-4 text-stone-300" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                        Execute First-Order Gradient Update
+                    </button>
+                </div>
+            </div>
+
+            <!-- Algorithm 2: Second-Order LiSSA (Creme Card) -->
+            <div class="card-hover bg-[#f8f6f0] border border-[#e5dfd2] p-6 rounded-xl space-y-5 shadow-xs">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-stone-900"></span>
+                            <h3 class="text-base font-bold tracking-tight text-stone-950">Second-Order LiSSA</h3>
+                        </div>
+                        <p class="text-sm text-stone-700 mt-1.5 leading-relaxed">
+                            Stochastic inverse Hessian-vector product calculation on classification head <code class="text-stone-900 font-mono text-xs font-bold bg-[#ece7da] px-1.5 py-0.5 rounded">model.fc</code>.
+                        </p>
+                    </div>
+                    <span class="text-xs font-mono text-stone-900 bg-[#efebe0] border border-[#ddd6c6] px-2.5 py-1 rounded whitespace-nowrap font-bold">
+                        INVERSE HESSIAN
+                    </span>
+                </div>
+                
+                <div class="pt-1">
+                    <label class="block text-xs font-mono uppercase tracking-wider text-stone-700 mb-1.5 font-bold">Hessian Damping Coefficient [λ]</label>
+                    <input class="w-full bg-[#fdfcf9] border border-[#dcd6c7] rounded px-3.5 py-2 text-sm font-mono font-bold text-stone-950 focus:ring-1 focus:ring-stone-900 focus:border-stone-900 focus:outline-none transition shadow-2xs" id="soDamping" type="text" value="0.05"/>
+                </div>
+                
+                <div class="pt-1">
+                    <button class="w-full py-3 px-4 bg-[#fdfcf9] hover:bg-[#f2ece0] active:bg-[#ede5d6] text-stone-950 border border-[#d5cfc0] hover:border-stone-600 font-mono text-sm tracking-wider uppercase rounded transition shadow-xs flex items-center justify-center gap-2 cursor-pointer font-bold" id="soBtn" onclick="runSecondOrder()">
+                        <svg class="w-4 h-4 text-stone-800" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                        Execute LiSSA Influence Update
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Execution Telemetry Stream: Warm Parchment Box with High-Contrast Monospace Text -->
+    <section class="space-y-2.5">
+        <div class="flex items-center justify-between pb-1">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                <span class="text-xs font-mono tracking-widest uppercase text-stone-800 font-bold">Execution Telemetry Stream</span>
+            </div>
+            <button class="text-xs font-mono text-stone-600 hover:text-stone-950 transition cursor-pointer font-bold" onclick="clearLogs()">
+                [ Clear Stream ]
+            </button>
+        </div>
+        <div class="font-mono text-sm p-4 h-44 overflow-y-auto space-y-2 leading-relaxed bg-[#f6f3eb] rounded-xl border border-[#e4ded0] shadow-xs text-stone-800 font-medium" id="terminal">
+            <div class="text-stone-600"><span class="text-stone-400 font-bold">[System]</span> Instrumentation Console ready. Connected to 5,000-sample pipeline...</div>
+        </div>
+    </section>
+
+    <!-- Experiment Benchmark Registry Table: Soft Cream & Warm Ivory Table with Bold Readable Text -->
+    <section class="space-y-3 pb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#e7e1d4]">
+            <div class="space-y-0.5">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-xs font-mono tracking-widest uppercase text-stone-900 font-bold">Experiment Benchmark Registry</span>
+                    <span class="text-xs px-2 py-0.5 rounded border border-[#ded7c7] text-stone-800 font-mono bg-[#f2eee3] font-bold" id="experimentCount">
+                        0 runs
+                    </span>
+                </div>
+                <p class="text-xs text-stone-600 font-medium">Automated benchmark logging for comparative thesis results and defense.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button class="px-3.5 py-2 text-xs font-mono text-stone-900 bg-[#fdfcf9] hover:bg-[#f6f2e8] border border-[#ded7c7] hover:border-stone-400 rounded-md shadow-xs transition flex items-center gap-2 cursor-pointer font-bold" onclick="exportToCSV()">
+                    <svg class="w-4 h-4 text-stone-700" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                    Export CSV
+                </button>
+                <button class="px-3.5 py-2 text-xs font-mono text-stone-900 bg-[#fdfcf9] hover:bg-[#f6f2e8] border border-[#ded7c7] hover:border-stone-400 rounded-md shadow-xs transition flex items-center gap-2 cursor-pointer font-bold" onclick="copyLaTeXTable()">
+                    <svg class="w-4 h-4 text-stone-700" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                    LaTeX Table
+                </button>
+                <button class="px-3 py-2 text-xs font-mono text-stone-600 hover:text-stone-950 transition cursor-pointer font-bold" onclick="clearExperiments()">
+                    Clear
+                </button>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto rounded-xl border border-[#e5dfd2] bg-[#fdfcf9] shadow-xs">
+            <table class="w-full text-left border-collapse text-sm font-mono">
+                <thead>
+                    <tr class="bg-[#f3efe6] border-b border-[#e5dfd2] text-stone-700 text-xs uppercase tracking-wider font-bold">
+                        <th class="py-3 px-4">#</th>
+                        <th class="py-3 px-4">Timestamp</th>
+                        <th class="py-3 px-4">Algorithm</th>
+                        <th class="py-3 px-4">Hyperparameters</th>
+                        <th class="py-3 px-4">Retain Acc (ƒ_R)</th>
+                        <th class="py-3 px-4">Forget Acc (ƒ_F)</th>
+                        <th class="py-3 px-4">MIA ROC-AUC</th>
+                        <th class="py-3 px-4 text-right">Verdict</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#ece7da] text-stone-800 font-medium" id="experimentsBody">
+                    <tr class="text-stone-500 text-center italic" id="emptyRow">
+                        <td class="py-8" colspan="8">No experimental runs recorded. Execute an algorithm above to populate benchmark registry.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
+
+<script>
+    let isLiveMode = true;
+    const apiUrl = "http://127.0.0.1:5000";
+    let experimentHistory = [];
+
+    function log(message, type = "info") {
+        const term = document.getElementById('terminal');
+        const time = new Date().toLocaleTimeString();
+        let color = "text-stone-800";
+        if (type === "warn") color = "text-amber-900 font-bold";
+        if (type === "error") color = "text-rose-800 font-extrabold";
+        if (type === "success") color = "text-emerald-900 font-bold";
+        
+        term.innerHTML += `<div class="${color}"><span class="text-stone-500 font-semibold">[${time}]</span> ${message}</div>`;
+        term.scrollTop = term.scrollHeight;
+    }
+
+    function clearLogs() {
+        document.getElementById('terminal').innerHTML = '';
+    }
+
+    function toggleMode() {
+        isLiveMode = !isLiveMode;
+        const btn = document.getElementById('modeToggle');
+        if (isLiveMode) {
+            btn.textContent = "Live Flask";
+            btn.className = "px-4 py-1.5 font-bold rounded bg-[#fdfcf9] text-stone-950 shadow-xs transition-all cursor-pointer";
+            log("Switched to Live Flask API mode.");
+            fetchInitialMetrics();
+        } else {
+            btn.textContent = "Simulation Mode";
+            btn.className = "px-4 py-1.5 font-bold rounded bg-transparent text-stone-600 hover:text-stone-950 transition-all cursor-pointer";
+            log("Switched to Simulation mode.", "warn");
+        }
+    }
+
+    function updateMetricsUI(metrics) {
+        document.getElementById('retainAcc').textContent = metrics.retain_accuracy + '%';
+        document.getElementById('forgetAcc').textContent = metrics.forget_accuracy + '%';
+        document.getElementById('miaAuc').textContent = metrics.mia_roc_auc;
+
+        const retainBar = document.getElementById('retainBar');
+        if (retainBar) retainBar.style.width = Math.min(100, Math.max(0, metrics.retain_accuracy)) + '%';
+        
+        const forgetBar = document.getElementById('forgetBar');
+        if (forgetBar) forgetBar.style.width = Math.min(100, Math.max(0, metrics.forget_accuracy)) + '%';
+        
+        const miaBar = document.getElementById('miaBar');
+        if (miaBar) miaBar.style.width = Math.min(100, Math.max(0, metrics.mia_roc_auc * 100)) + '%';
+
+        // 1. Retain Accuracy status
+        const retEl = document.getElementById('retainAcc');
+        const retBadge = document.getElementById('retainBadge');
+        const retDot = document.getElementById('retainDot');
+        if (metrics.retain_accuracy >= 99.0) {
+            retEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-emerald-800";
+            retBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#c6dfcb] text-emerald-900 bg-[#eaf3ec] font-bold";
+            retBadge.textContent = "High Utility (≥99%)";
+            if (retDot) retDot.className = "w-2 h-2 rounded-full bg-emerald-600";
+            if (retainBar) retainBar.className = "metric-bar h-full bg-emerald-700 rounded-full";
+        } else if (metrics.retain_accuracy >= 90.0) {
+            retEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800";
+            retBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold";
+            retBadge.textContent = "Stable (90–99%)";
+            if (retDot) retDot.className = "w-2 h-2 rounded-full bg-amber-500";
+            if (retainBar) retainBar.className = "metric-bar h-full bg-amber-600 rounded-full";
+        } else {
+            retEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-rose-700";
+            retBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eec8c4] text-rose-900 bg-[#fbedeb] font-bold";
+            retBadge.textContent = "Degraded (<90%)";
+            if (retDot) retDot.className = "w-2 h-2 rounded-full bg-rose-600";
+            if (retainBar) retainBar.className = "metric-bar h-full bg-rose-600 rounded-full";
+        }
+
+        // 2. Forget Accuracy status
+        const frgEl = document.getElementById('forgetAcc');
+        const frgBadge = document.getElementById('forgetBadge');
+        const frgDot = document.getElementById('forgetDot');
+        if (metrics.forget_accuracy <= 25.0) {
+            frgEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-emerald-800";
+            frgBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#c6dfcb] text-emerald-900 bg-[#eaf3ec] font-bold";
+            frgBadge.textContent = "Erased (10–25%)";
+            if (frgDot) frgDot.className = "w-2 h-2 rounded-full bg-emerald-600";
+            if (forgetBar) forgetBar.className = "metric-bar h-full bg-emerald-700 rounded-full";
+        } else if (metrics.forget_accuracy <= 45.0) {
+            frgEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800";
+            frgBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold";
+            frgBadge.textContent = "Near Target (~25–45%)";
+            if (frgDot) frgDot.className = "w-2 h-2 rounded-full bg-amber-500";
+            if (forgetBar) forgetBar.className = "metric-bar h-full bg-amber-600 rounded-full";
+        } else {
+            frgEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-rose-700";
+            frgBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eec8c4] text-rose-900 bg-[#fbedeb] font-bold";
+            frgBadge.textContent = "Memorized (>45%)";
+            if (frgDot) frgDot.className = "w-2 h-2 rounded-full bg-rose-600";
+            if (forgetBar) forgetBar.className = "metric-bar h-full bg-rose-600 rounded-full";
+        }
+
+        // 3. MIA ROC-AUC status
+        const miaEl = document.getElementById('miaAuc');
+        const miaBadge = document.getElementById('miaBadge');
+        const miaDot = document.getElementById('miaDot');
+        if (metrics.mia_roc_auc >= 0.42 && metrics.mia_roc_auc <= 0.52) {
+            miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-emerald-800";
+            miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#c6dfcb] text-emerald-900 bg-[#eaf3ec] font-bold";
+            miaBadge.textContent = "Optimal Privacy (0.42–0.52)";
+            if (miaDot) miaDot.className = "w-2 h-2 rounded-full bg-emerald-600";
+            if (miaBar) miaBar.className = "metric-bar h-full bg-emerald-700 rounded-full";
+        } else if (metrics.mia_roc_auc >= 0.30 && metrics.mia_roc_auc < 0.42) {
+            miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800";
+            miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold";
+            miaBadge.textContent = "Acceptable Scar (0.30–0.42)";
+            if (miaDot) miaDot.className = "w-2 h-2 rounded-full bg-amber-500";
+            if (miaBar) miaBar.className = "metric-bar h-full bg-amber-600 rounded-full";
+        } else if (metrics.mia_roc_auc > 0.52 && metrics.mia_roc_auc <= 0.60) {
+            miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800";
+            miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold";
+            miaBadge.textContent = "Minor Leak (0.52–0.60)";
+            if (miaDot) miaDot.className = "w-2 h-2 rounded-full bg-amber-500";
+            if (miaBar) miaBar.className = "metric-bar h-full bg-amber-600 rounded-full";
+        } else if (metrics.mia_roc_auc < 0.30) {
+            miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-rose-700";
+            miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eec8c4] text-rose-900 bg-[#fbedeb] font-bold";
+            miaBadge.textContent = "Severe Scar (<0.30)";
+            if (miaDot) miaDot.className = "w-2 h-2 rounded-full bg-rose-600";
+            if (miaBar) miaBar.className = "metric-bar h-full bg-rose-600 rounded-full";
+        } else {
+            miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-rose-700";
+            miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eec8c4] text-rose-900 bg-[#fbedeb] font-bold";
+            miaBadge.textContent = "Membership Leak (>0.60)";
+            if (miaDot) miaDot.className = "w-2 h-2 rounded-full bg-rose-600";
+            if (miaBar) miaBar.className = "metric-bar h-full bg-rose-600 rounded-full";
+        }
+    }
+
+    function logExperiment(method, params, metrics) {
+        const runNum = experimentHistory.length + 1;
+        const time = new Date().toLocaleTimeString();
+        
+        let status = "BENCHMARK";
+        let badgeClass = "text-stone-800 border border-[#ded7c7] bg-[#ede7d8]";
+        
+        if (metrics.retain_accuracy >= 98.0 && metrics.mia_roc_auc >= 0.42 && metrics.mia_roc_auc <= 0.52) {
+            status = "PRIVACY SWEET SPOT";
+            badgeClass = "text-emerald-900 border border-[#c6dfcb] bg-[#eaf3ec]";
+        } else if (metrics.retain_accuracy >= 98.0 && metrics.forget_accuracy <= 25.0) {
+            status = "DEEP ERASURE";
+            badgeClass = "text-emerald-900 border border-[#c6dfcb] bg-[#eaf3ec]";
+        } else if (metrics.retain_accuracy >= 98.0 && metrics.mia_roc_auc >= 0.30 && metrics.forget_accuracy <= 45.0) {
+            status = "ACCEPTABLE UNLEARN";
+            badgeClass = "text-amber-900 border border-[#eed8a1] bg-[#fef8ea]";
+        }
+
+        const record = {
+            id: runNum,
+            time: time,
+            method: method,
+            params: params,
+            retain: metrics.retain_accuracy,
+            forget: metrics.forget_accuracy,
+            mia: metrics.mia_roc_auc,
+            status: status,
+            badgeClass: badgeClass
+        };
+        experimentHistory.push(record);
+        renderExperimentsTable();
+    }
+
+    function renderExperimentsTable() {
+        const tbody = document.getElementById('experimentsBody');
+        document.getElementById('experimentCount').textContent = `${experimentHistory.length} run${experimentHistory.length === 1 ? '' : 's'}`;
+        
+        if (experimentHistory.length === 0) {
+            tbody.innerHTML = `<tr id="emptyRow" class="text-stone-500 text-center italic"><td class="py-8" colspan="8">No experimental runs recorded. Execute an algorithm above to populate benchmark registry.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = experimentHistory.slice().reverse().map(exp => {
+            const retCol = exp.retain >= 99.0 ? 'text-emerald-900' : (exp.retain >= 90.0 ? 'text-amber-800' : 'text-rose-700');
+            const frgCol = exp.forget <= 25.0 ? 'text-emerald-900' : (exp.forget <= 45.0 ? 'text-amber-800' : 'text-rose-700');
+            const miaCol = (exp.mia >= 0.42 && exp.mia <= 0.52) ? 'text-emerald-900' : ((exp.mia >= 0.30 && exp.mia <= 0.60) ? 'text-amber-800' : 'text-rose-700');
+            
+            return `
+            <tr class="hover:bg-[#f6f2e8] transition-colors">
+                <td class="py-3 px-4 text-stone-600 font-bold">${exp.id}</td>
+                <td class="py-3 px-4 text-stone-600">${exp.time}</td>
+                <td class="py-3 px-4 font-bold text-stone-950">${exp.method}</td>
+                <td class="py-3 px-4 text-stone-700 text-xs font-semibold">${exp.params}</td>
+                <td class="py-3 px-4 font-bold ${retCol}">${exp.retain}%</td>
+                <td class="py-3 px-4 font-bold ${frgCol}">${exp.forget}%</td>
+                <td class="py-3 px-4 font-bold ${miaCol}">${exp.mia}</td>
+                <td class="py-3 px-4 text-right">
+                    <span class="px-2.5 py-1 rounded text-xs font-bold ${exp.badgeClass}">
+                        ${exp.status}
+                    </span>
+                </td>
+            </tr>
+            `;
+        }).join('');
+    }
+
+    function exportToCSV() {
+        if (experimentHistory.length === 0) {
+            alert("No experiment runs to export yet.");
+            return;
+        }
+        const headers = ["Run_ID", "Time", "Algorithm", "Hyperparameters", "Retain_Accuracy_Pct", "Forget_Accuracy_Pct", "MIA_ROC_AUC", "Status"];
+        const rows = experimentHistory.map(e => [
+            e.id, `"${e.time}"`, `"${e.method}"`, `"${e.params.replace(/"/g, '""')}"`, e.retain, e.forget, e.mia, e.status
+        ]);
+        const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+        
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `unlearning_experiments_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("Exported experiment registry to CSV.", "success");
+    }
+
+    function copyLaTeXTable() {
+        if (experimentHistory.length === 0) {
+            alert("No experiment runs to format as LaTeX.");
+            return;
+        }
+        let latex = "\\begin{table}[htbp]\n\\centering\n\\caption{Machine Unlearning Experimental Evaluation on CIFAR-10}\n\\label{tab:unlearning_results}\n\\begin{tabular}{c c l c c c c}\n\\hline\n";
+        latex += "\\textbf{\\#} & \\textbf{Algorithm} & \\textbf{Hyperparameters} & \\textbf{Retain (\\%)} & \\textbf{Forget (\\%)} & \\textbf{MIA AUC} & \\textbf{Verdict} \\\\\n\\hline\n";
+        experimentHistory.forEach(e => {
+            latex += `${e.id} & ${e.method} & ${e.params} & ${e.retain}\\% & ${e.forget}\\% & ${e.mia} & ${e.status} \\\\\n`;
+        });
+        latex += "\\hline\n\\end{tabular}\n\\end{table}";
+        
+        navigator.clipboard.writeText(latex).then(() => {
+            alert("LaTeX Table code copied to clipboard.");
+            log("LaTeX table copied to clipboard.", "success");
+        }).catch(() => {
+            log("Clipboard write failed. Check console for table string.", "warn");
+        });
+    }
+
+    function clearExperiments() {
+        experimentHistory = [];
+        renderExperimentsTable();
+        log("Cleared experiment benchmark registry.", "warn");
+    }
+
+    async function fetchInitialMetrics() {
+        try {
+            const statusRes = await fetch(`${apiUrl}/status`);
+            const statusData = await statusRes.json();
+            if (statusData.device_name) {
+                const devName = statusData.device_name;
+                const isGPU = statusData.device && statusData.device.includes("cuda");
+                document.getElementById('deviceSubtitle').innerHTML = 
+                    `<span>ARCHITECTURE: <span class="text-stone-950 font-bold">ResNet-18</span></span>
+                     <span class="text-stone-300">•</span>
+                     <span>DATASET: <span class="text-stone-950 font-bold">CIFAR-10 (${statusData.total_samples || 5000} samples)</span></span>
+                     <span class="text-stone-300">•</span>
+                     <span>ACCELERATOR: <span class="${isGPU ? 'text-stone-950 font-bold' : 'text-stone-600 font-semibold'}">${devName}</span></span>
+                     <span class="text-stone-300">•</span>
+                     <span>TARGET: <span class="text-rose-700 font-bold">500 Forget Samples</span></span>`;
+            }
+
+            const res = await fetch(`${apiUrl}/evaluate`);
+            const data = await res.json();
+            updateMetricsUI(data.current_metrics);
+            log(`Connected to Flask API. Retain: ${data.current_metrics.retain_accuracy}%, Forget: ${data.current_metrics.forget_accuracy}%, MIA: ${data.current_metrics.mia_roc_auc}`, "success");
+        } catch (err) {
+            const btn = document.getElementById('modeToggle');
+            btn.textContent = "Simulation Mode";
+            btn.className = "px-4 py-1.5 font-bold rounded bg-transparent text-stone-600 hover:text-stone-950 transition-all cursor-pointer";
+            log(`Notice: Flask backend offline at ${apiUrl}. Running simulation engine.`, "warn");
+        }
+    }
+
+    async function resetModel() {
+        log("Resetting model to baseline weights...", "info");
+        const btn = document.getElementById('resetBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="w-3.5 h-3.5 animate-spin text-white" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg><span>Resetting...</span>`;
+        
+        if (isLiveMode) {
+            try {
+                const res = await fetch(`${apiUrl}/reset`, { method: 'POST' });
+                const data = await res.json();
+                updateMetricsUI(data.metrics);
+                log(`Success: ${data.message}`, "success");
+                logExperiment("Baseline Reset", "Clean Baseline", data.metrics);
+            } catch (err) {
+                log(`Error resetting model: ${err.message}`, "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        } else {
+            setTimeout(() => {
+                const baseline = { retain_accuracy: 99.91, forget_accuracy: 100.0, mia_roc_auc: 0.844 };
+                updateMetricsUI(baseline);
+                log("Success: Model weights restored to pristine 5,000-sample baseline.", "success");
+                logExperiment("Baseline Reset", "Clean Baseline", baseline);
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }, 300);
+        }
+    }
+
+    async function runFirstOrder() {
+        const epochs = document.getElementById('foEpochs').value;
+        const lr = document.getElementById('foLr').value;
+        const btn = document.getElementById('foBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="w-4 h-4 animate-spin text-stone-300" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg><span>Optimizing (Please Wait)...</span>`;
+        log(`Triggering First-Order unlearning [epochs: ${epochs}, lr: ${lr}]...`);
+
+        if (isLiveMode) {
+            try {
+                const res = await fetch(`${apiUrl}/unlearn/first-order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ epochs: parseInt(epochs), lr: parseFloat(lr) })
+                });
+                const data = await res.json();
+                updateMetricsUI(data.metrics);
+                log(`Success: ${data.message}`, "success");
+                log(`Results -> Retain: ${data.metrics.retain_accuracy}%, Forget: ${data.metrics.forget_accuracy}%, MIA: ${data.metrics.mia_roc_auc}`, "info");
+                logExperiment("First-Order GA/GD", `ep=${epochs}, lr=${lr}`, data.metrics);
+            } catch (err) {
+                log(`Error: Could not connect to Flask server at ${apiUrl}.`, "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        } else {
+            setTimeout(() => {
+                const m = { retain_accuracy: 99.44, forget_accuracy: 23.0, mia_roc_auc: 0.327 };
+                updateMetricsUI(m);
+                log("Success: First-Order Gradient Ascent / Descent complete.", "success");
+                log(`Results -> Retain: ${m.retain_accuracy}%, Forget: ${m.forget_accuracy}%, MIA: ${m.mia_roc_auc}`, "info");
+                logExperiment("First-Order GA/GD", `ep=${epochs}, lr=${lr}`, m);
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }, 500);
+        }
+    }
+
+    async function runSecondOrder() {
+        const damping = document.getElementById('soDamping').value;
+        const btn = document.getElementById('soBtn');
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<svg class="w-4 h-4 animate-spin text-stone-700" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg><span>Inverting Hessian...</span>`;
+        log(`Triggering Second-Order LiSSA update [damping: ${damping}]...`);
+
+        if (isLiveMode) {
+            try {
+                const res = await fetch(`${apiUrl}/unlearn/second-order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ damping: parseFloat(damping) })
+                });
+                const data = await res.json();
+                updateMetricsUI(data.metrics);
+                log(`Success: ${data.message}`, "success");
+                log(`Results -> Retain: ${data.metrics.retain_accuracy}%, Forget: ${data.metrics.forget_accuracy}%, MIA: ${data.metrics.mia_roc_auc}`, "info");
+                logExperiment("Second-Order LiSSA", `λ=${damping}`, data.metrics);
+            } catch (err) {
+                log(`Error: Could not connect to Flask server at ${apiUrl}.`, "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        } else {
+            setTimeout(() => {
+                const m = { retain_accuracy: 99.40, forget_accuracy: 28.8, mia_roc_auc: 0.378 };
+                updateMetricsUI(m);
+                log("Success: Second-Order LiSSA unlearning executed on model.fc (λ=" + damping + ")", "success");
+                log(`Results -> Retain: ${m.retain_accuracy}%, Forget: ${m.forget_accuracy}%, MIA: ${m.mia_roc_auc}`, "info");
+                logExperiment("Second-Order LiSSA", `λ=${damping}`, m);
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }, 500);
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const initial = { retain_accuracy: 99.44, forget_accuracy: 23.0, mia_roc_auc: 0.327 };
+        updateMetricsUI(initial);
+        fetchInitialMetrics();
+    });
+</script>
 </body>
 </html>
