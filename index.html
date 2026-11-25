@@ -63,7 +63,16 @@
         }
 
         .metric-bar {
-            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+            transition: background-color 0.4s ease;
+        }
+        #retainAcc, #forgetAcc, #miaAuc {
+            transition: color 0.35s ease;
+        }
+        #retainBadge, #forgetBadge, #miaBadge {
+            transition: color 0.35s ease, background-color 0.35s ease, border-color 0.35s ease;
+        }
+        #retainDot, #forgetDot, #miaDot {
+            transition: background-color 0.35s ease;
         }
 
         /* Color brighten hover effect on cards */
@@ -421,31 +430,101 @@
         }
     }
 
-    function updateMetricsUI(metrics) {
-        document.getElementById('retainAcc').textContent = metrics.retain_accuracy + '%';
-        document.getElementById('forgetAcc').textContent = metrics.forget_accuracy + '%';
-        document.getElementById('miaAuc').textContent = metrics.mia_roc_auc;
+    let currentMetrics = {
+        retain_accuracy: 0.0,
+        forget_accuracy: 0.0,
+        mia_roc_auc: 0.000
+    };
+    let activeAnimId = null;
 
+    function updateMetricsUI(metrics, options = {}) {
+        if (!metrics) return;
+        
+        if (activeAnimId) {
+            cancelAnimationFrame(activeAnimId);
+            activeAnimId = null;
+        }
+
+        const fromZero = options.fromZero || false;
+        const duration = options.duration !== undefined ? options.duration : 1100; // ms
+
+        const startMetrics = {
+            retain_accuracy: fromZero ? 0.0 : currentMetrics.retain_accuracy,
+            forget_accuracy: fromZero ? 0.0 : currentMetrics.forget_accuracy,
+            mia_roc_auc: fromZero ? 0.0 : currentMetrics.mia_roc_auc
+        };
+
+        const targetMetrics = {
+            retain_accuracy: parseFloat(metrics.retain_accuracy),
+            forget_accuracy: parseFloat(metrics.forget_accuracy),
+            mia_roc_auc: parseFloat(metrics.mia_roc_auc)
+        };
+
+        const startTime = performance.now();
+
+        function step(now) {
+            const elapsed = now - startTime;
+            const rawProgress = Math.min(1, Math.max(0, elapsed / duration));
+            
+            // Ease-out cubic for smooth deceleration
+            const progress = 1 - Math.pow(1 - rawProgress, 3);
+
+            const frameValues = {
+                retain_accuracy: startMetrics.retain_accuracy + (targetMetrics.retain_accuracy - startMetrics.retain_accuracy) * progress,
+                forget_accuracy: startMetrics.forget_accuracy + (targetMetrics.forget_accuracy - startMetrics.forget_accuracy) * progress,
+                mia_roc_auc: startMetrics.mia_roc_auc + (targetMetrics.mia_roc_auc - startMetrics.mia_roc_auc) * progress
+            };
+
+            renderMetricsFrame(frameValues, rawProgress >= 1 ? targetMetrics : null);
+
+            if (rawProgress < 1) {
+                activeAnimId = requestAnimationFrame(step);
+            } else {
+                currentMetrics = { ...targetMetrics };
+                activeAnimId = null;
+            }
+        }
+
+        activeAnimId = requestAnimationFrame(step);
+    }
+
+    function renderMetricsFrame(frameValues, finalTarget = null) {
+        // 1. Text Numerals
+        const retEl = document.getElementById('retainAcc');
+        const frgEl = document.getElementById('forgetAcc');
+        const miaEl = document.getElementById('miaAuc');
+
+        if (finalTarget) {
+            retEl.textContent = finalTarget.retain_accuracy + '%';
+            frgEl.textContent = finalTarget.forget_accuracy + '%';
+            miaEl.textContent = finalTarget.mia_roc_auc;
+        } else {
+            retEl.textContent = frameValues.retain_accuracy.toFixed(2) + '%';
+            frgEl.textContent = frameValues.forget_accuracy.toFixed(1) + '%';
+            miaEl.textContent = frameValues.mia_roc_auc.toFixed(3);
+        }
+
+        // 2. Dynamic Progress Bars
         const retainBar = document.getElementById('retainBar');
-        if (retainBar) retainBar.style.width = Math.min(100, Math.max(0, metrics.retain_accuracy)) + '%';
+        if (retainBar) retainBar.style.width = Math.min(100, Math.max(0, frameValues.retain_accuracy)) + '%';
         
         const forgetBar = document.getElementById('forgetBar');
-        if (forgetBar) forgetBar.style.width = Math.min(100, Math.max(0, metrics.forget_accuracy)) + '%';
+        if (forgetBar) forgetBar.style.width = Math.min(100, Math.max(0, frameValues.forget_accuracy)) + '%';
         
         const miaBar = document.getElementById('miaBar');
-        if (miaBar) miaBar.style.width = Math.min(100, Math.max(0, metrics.mia_roc_auc * 100)) + '%';
+        if (miaBar) miaBar.style.width = Math.min(100, Math.max(0, frameValues.mia_roc_auc * 100)) + '%';
 
-        // 1. Retain Accuracy status
-        const retEl = document.getElementById('retainAcc');
+        // 3. Dynamic Retain Accuracy Status & Color Morph
         const retBadge = document.getElementById('retainBadge');
         const retDot = document.getElementById('retainDot');
-        if (metrics.retain_accuracy >= 99.0) {
+        const curRet = frameValues.retain_accuracy;
+        if (curRet >= 99.0) {
             retEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-emerald-800";
             retBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#c6dfcb] text-emerald-900 bg-[#eaf3ec] font-bold";
             retBadge.textContent = "High Utility (≥99%)";
             if (retDot) retDot.className = "w-2 h-2 rounded-full bg-emerald-600";
             if (retainBar) retainBar.className = "metric-bar h-full bg-emerald-700 rounded-full";
-        } else if (metrics.retain_accuracy >= 90.0) {
+        } else if (curRet >= 90.0) {
             retEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800";
             retBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold";
             retBadge.textContent = "Stable (90–99%)";
@@ -459,17 +538,17 @@
             if (retainBar) retainBar.className = "metric-bar h-full bg-rose-600 rounded-full";
         }
 
-        // 2. Forget Accuracy status
-        const frgEl = document.getElementById('forgetAcc');
+        // 4. Dynamic Forget Accuracy Status & Color Morph
         const frgBadge = document.getElementById('forgetBadge');
         const frgDot = document.getElementById('forgetDot');
-        if (metrics.forget_accuracy <= 25.0) {
+        const curFrg = frameValues.forget_accuracy;
+        if (curFrg <= 25.0) {
             frgEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-emerald-800";
             frgBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#c6dfcb] text-emerald-900 bg-[#eaf3ec] font-bold";
             frgBadge.textContent = "Erased (10–25%)";
             if (frgDot) frgDot.className = "w-2 h-2 rounded-full bg-emerald-600";
             if (forgetBar) forgetBar.className = "metric-bar h-full bg-emerald-700 rounded-full";
-        } else if (metrics.forget_accuracy <= 45.0) {
+        } else if (curFrg <= 45.0) {
             frgEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800";
             frgBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold";
             frgBadge.textContent = "Near Target (~25–45%)";
@@ -483,29 +562,29 @@
             if (forgetBar) forgetBar.className = "metric-bar h-full bg-rose-600 rounded-full";
         }
 
-        // 3. MIA ROC-AUC status
-        const miaEl = document.getElementById('miaAuc');
+        // 5. Dynamic MIA ROC-AUC Status & Color Morph
         const miaBadge = document.getElementById('miaBadge');
         const miaDot = document.getElementById('miaDot');
-        if (metrics.mia_roc_auc >= 0.42 && metrics.mia_roc_auc <= 0.52) {
+        const curMia = frameValues.mia_roc_auc;
+        if (curMia >= 0.42 && curMia <= 0.52) {
             miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-emerald-800";
             miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#c6dfcb] text-emerald-900 bg-[#eaf3ec] font-bold";
             miaBadge.textContent = "Optimal Privacy (0.42–0.52)";
             if (miaDot) miaDot.className = "w-2 h-2 rounded-full bg-emerald-600";
             if (miaBar) miaBar.className = "metric-bar h-full bg-emerald-700 rounded-full";
-        } else if (metrics.mia_roc_auc >= 0.30 && metrics.mia_roc_auc < 0.42) {
+        } else if (curMia >= 0.30 && curMia < 0.42) {
             miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800";
             miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold";
             miaBadge.textContent = "Acceptable Scar (0.30–0.42)";
             if (miaDot) miaDot.className = "w-2 h-2 rounded-full bg-amber-500";
             if (miaBar) miaBar.className = "metric-bar h-full bg-amber-600 rounded-full";
-        } else if (metrics.mia_roc_auc > 0.52 && metrics.mia_roc_auc <= 0.60) {
+        } else if (curMia > 0.52 && curMia <= 0.60) {
             miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-amber-800";
             miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eed8a1] text-amber-900 bg-[#fef8ea] font-bold";
             miaBadge.textContent = "Minor Leak (0.52–0.60)";
             if (miaDot) miaDot.className = "w-2 h-2 rounded-full bg-amber-500";
             if (miaBar) miaBar.className = "metric-bar h-full bg-amber-600 rounded-full";
-        } else if (metrics.mia_roc_auc < 0.30) {
+        } else if (curMia < 0.30) {
             miaEl.className = "text-5xl md:text-6xl font-semibold font-mono tracking-tight text-rose-700";
             miaBadge.className = "text-xs font-mono px-2.5 py-1 rounded border border-[#eec8c4] text-rose-900 bg-[#fbedeb] font-bold";
             miaBadge.textContent = "Severe Scar (<0.30)";
@@ -633,10 +712,24 @@
         log("Cleared experiment benchmark registry.", "warn");
     }
 
+    async function safeFetchJson(url, options = {}) {
+        const res = await fetch(url, options);
+        const text = await res.text();
+        let data = null;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            throw new Error(`Server returned HTTP ${res.status} (${res.statusText || 'Error'})`);
+        }
+        if (!res.ok) {
+            throw new Error((data && data.error) ? data.error : `HTTP ${res.status}`);
+        }
+        return data;
+    }
+
     async function fetchInitialMetrics() {
         try {
-            const statusRes = await fetch(`${apiUrl}/status`);
-            const statusData = await statusRes.json();
+            const statusData = await safeFetchJson(`${apiUrl}/status`);
             if (statusData.device_name) {
                 const devName = statusData.device_name;
                 const isGPU = statusData.device && statusData.device.includes("cuda");
@@ -650,15 +743,14 @@
                      <span>TARGET: <span class="text-rose-700 font-bold">500 Forget Samples</span></span>`;
             }
 
-            const res = await fetch(`${apiUrl}/evaluate`);
-            const data = await res.json();
+            const data = await safeFetchJson(`${apiUrl}/evaluate`);
             updateMetricsUI(data.current_metrics);
             log(`Connected to Flask API. Retain: ${data.current_metrics.retain_accuracy}%, Forget: ${data.current_metrics.forget_accuracy}%, MIA: ${data.current_metrics.mia_roc_auc}`, "success");
         } catch (err) {
             const btn = document.getElementById('modeToggle');
             btn.textContent = "Simulation Mode";
             btn.className = "px-4 py-1.5 font-bold rounded bg-transparent text-stone-600 hover:text-stone-950 transition-all cursor-pointer";
-            log(`Notice: Flask backend offline at ${apiUrl}. Running simulation engine.`, "warn");
+            log(`Notice: Flask backend offline or error at ${apiUrl}. Running simulation engine.`, "warn");
         }
     }
 
@@ -671,9 +763,8 @@
         
         if (isLiveMode) {
             try {
-                const res = await fetch(`${apiUrl}/reset`, { method: 'POST' });
-                const data = await res.json();
-                updateMetricsUI(data.metrics);
+                const data = await safeFetchJson(`${apiUrl}/reset`, { method: 'POST' });
+                updateMetricsUI(data.metrics, { fromZero: true, duration: 1200 });
                 log(`Success: ${data.message}`, "success");
                 logExperiment("Baseline Reset", "Clean Baseline", data.metrics);
             } catch (err) {
@@ -685,7 +776,7 @@
         } else {
             setTimeout(() => {
                 const baseline = { retain_accuracy: 99.91, forget_accuracy: 100.0, mia_roc_auc: 0.844 };
-                updateMetricsUI(baseline);
+                updateMetricsUI(baseline, { fromZero: true, duration: 1200 });
                 log("Success: Model weights restored to pristine 5,000-sample baseline.", "success");
                 logExperiment("Baseline Reset", "Clean Baseline", baseline);
                 btn.disabled = false;
@@ -705,18 +796,17 @@
 
         if (isLiveMode) {
             try {
-                const res = await fetch(`${apiUrl}/unlearn/first-order`, {
+                const data = await safeFetchJson(`${apiUrl}/unlearn/first-order`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ epochs: parseInt(epochs), lr: parseFloat(lr) })
                 });
-                const data = await res.json();
-                updateMetricsUI(data.metrics);
+                updateMetricsUI(data.metrics, { duration: 1100 });
                 log(`Success: ${data.message}`, "success");
                 log(`Results -> Retain: ${data.metrics.retain_accuracy}%, Forget: ${data.metrics.forget_accuracy}%, MIA: ${data.metrics.mia_roc_auc}`, "info");
                 logExperiment("First-Order GA/GD", `ep=${epochs}, lr=${lr}`, data.metrics);
             } catch (err) {
-                log(`Error: Could not connect to Flask server at ${apiUrl}.`, "error");
+                log(`Error: ${err.message}`, "error");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = orig;
@@ -724,7 +814,7 @@
         } else {
             setTimeout(() => {
                 const m = { retain_accuracy: 99.44, forget_accuracy: 23.0, mia_roc_auc: 0.327 };
-                updateMetricsUI(m);
+                updateMetricsUI(m, { duration: 1100 });
                 log("Success: First-Order Gradient Ascent / Descent complete.", "success");
                 log(`Results -> Retain: ${m.retain_accuracy}%, Forget: ${m.forget_accuracy}%, MIA: ${m.mia_roc_auc}`, "info");
                 logExperiment("First-Order GA/GD", `ep=${epochs}, lr=${lr}`, m);
@@ -744,18 +834,17 @@
 
         if (isLiveMode) {
             try {
-                const res = await fetch(`${apiUrl}/unlearn/second-order`, {
+                const data = await safeFetchJson(`${apiUrl}/unlearn/second-order`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ damping: parseFloat(damping) })
                 });
-                const data = await res.json();
-                updateMetricsUI(data.metrics);
+                updateMetricsUI(data.metrics, { duration: 1100 });
                 log(`Success: ${data.message}`, "success");
                 log(`Results -> Retain: ${data.metrics.retain_accuracy}%, Forget: ${data.metrics.forget_accuracy}%, MIA: ${data.metrics.mia_roc_auc}`, "info");
                 logExperiment("Second-Order LiSSA", `λ=${damping}`, data.metrics);
             } catch (err) {
-                log(`Error: Could not connect to Flask server at ${apiUrl}.`, "error");
+                log(`Error: ${err.message}`, "error");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = orig;
@@ -763,7 +852,7 @@
         } else {
             setTimeout(() => {
                 const m = { retain_accuracy: 99.40, forget_accuracy: 28.8, mia_roc_auc: 0.378 };
-                updateMetricsUI(m);
+                updateMetricsUI(m, { duration: 1100 });
                 log("Success: Second-Order LiSSA unlearning executed on model.fc (λ=" + damping + ")", "success");
                 log(`Results -> Retain: ${m.retain_accuracy}%, Forget: ${m.forget_accuracy}%, MIA: ${m.mia_roc_auc}`, "info");
                 logExperiment("Second-Order LiSSA", `λ=${damping}`, m);
@@ -775,7 +864,7 @@
 
     window.addEventListener('DOMContentLoaded', () => {
         const initial = { retain_accuracy: 99.44, forget_accuracy: 23.0, mia_roc_auc: 0.327 };
-        updateMetricsUI(initial);
+        updateMetricsUI(initial, { fromZero: true, duration: 1300 });
         fetchInitialMetrics();
     });
 </script>

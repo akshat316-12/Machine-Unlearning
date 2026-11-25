@@ -5,7 +5,7 @@ import torch.optim as optim
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-def run_first_order_unlearning(model, retain_loader, forget_loader, test_loader, device, epochs=3, lr=0.015, alpha=0.7, scrub_ratio=0.45, max_ascent=2.6):
+def run_first_order_unlearning(model, retain_loader, forget_loader, test_loader, device=None, epochs=3, lr=0.015, alpha=0.7, scrub_ratio=0.45, max_ascent=2.6):
     """
     First-Order Gradient Ascent / Descent Unlearning:
     - Retain Set Descent: Minimizes empirical risk on retain set to preserve utility (Retain Acc >= 99%)
@@ -13,6 +13,8 @@ def run_first_order_unlearning(model, retain_loader, forget_loader, test_loader,
     - Targeted Label Scrubbing: Diverts memorized representations toward random targets (Forget Acc ~10%-20%)
     - Gradient Clipping: Stabilizes gradient dynamics (max_norm=1.0)
     """
+    if device is None:
+        device = next(model.parameters()).device
     model.train()
     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
     criterion_ce = nn.CrossEntropyLoss()
@@ -51,12 +53,14 @@ def run_first_order_unlearning(model, retain_loader, forget_loader, test_loader,
             
     return model
 
-def run_second_order_lissa_fc(model, retain_loader, forget_loader, test_loader, device, damping=0.05):
+def run_second_order_lissa_fc(model, retain_loader, forget_loader, test_loader, device=None, damping=0.05):
     """
     Second-Order LiSSA Influence Function Unlearning:
     - Stage 1: Damped Hessian-Vector product estimation of H^{-1} v on model.fc
     - Stage 2: Retain-preserving fine-tuning to guarantee >=99% retain utility
     """
+    if device is None:
+        device = next(model.parameters()).device
     criterion = nn.CrossEntropyLoss()
     
     model.eval()
@@ -141,12 +145,14 @@ def run_second_order_lissa_fc(model, retain_loader, forget_loader, test_loader, 
             
     return model
 
-def evaluate_metrics(model, retain_loader, forget_loader, test_loader, device):
+def evaluate_metrics(model, retain_loader, forget_loader, test_loader, device=None):
     """
     Calculates Retain Accuracy, Forget Accuracy, and MIA ROC-AUC score:
     - Per-sample losses using reduction='none'
     - MIA ROC-AUC evaluates auditor's ability to distinguish Forgotten members from unseen Test set.
     """
+    if device is None:
+        device = next(model.parameters()).device
     model.eval()
     criterion_none = nn.CrossEntropyLoss(reduction='none')
     

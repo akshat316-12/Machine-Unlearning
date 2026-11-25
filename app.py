@@ -77,36 +77,46 @@ def status():
 
 @app.route('/unlearn/first-order', methods=['POST'])
 def trigger_first_order():
-    data = request.get_json(silent=True) or {}
-    epochs = int(data.get('epochs', 3))
-    lr = float(data.get('lr', 0.015))
-    
-    global model
-    model = run_first_order_unlearning(model, retain_loader, forget_loader, test_loader, device, epochs=epochs, lr=lr)
-    metrics = evaluate_metrics(model, retain_loader, forget_loader, test_loader, device)
-    
-    return jsonify({"message": f"First-order unlearning executed (epochs={epochs}, lr={lr})", "metrics": metrics})
+    try:
+        data = request.get_json(silent=True) or {}
+        epochs = int(data.get('epochs', 2))
+        lr = float(data.get('lr', 0.015))
+        
+        global model
+        model = run_first_order_unlearning(model, retain_loader, forget_loader, test_loader, device=device, epochs=epochs, lr=lr)
+        metrics = evaluate_metrics(model, retain_loader, forget_loader, test_loader, device=device)
+        
+        return jsonify({"message": f"First-order unlearning executed (epochs={epochs}, lr={lr})", "metrics": metrics})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/unlearn/second-order', methods=['POST'])
 def trigger_second_order():
-    data = request.get_json(silent=True) or {}
-    damping = float(data.get('damping', 0.05))
-    
-    global model
-    model = run_second_order_lissa_fc(model, retain_loader, forget_loader, test_loader, device, damping=damping)
-    metrics = evaluate_metrics(model, retain_loader, forget_loader, test_loader, device)
-    
-    return jsonify({"message": f"Second-order LiSSA unlearning executed on model.fc (damping={damping})", "metrics": metrics})
+    try:
+        data = request.get_json(silent=True) or {}
+        damping = float(data.get('damping', 0.05))
+        
+        global model
+        model = run_second_order_lissa_fc(model, retain_loader, forget_loader, test_loader, device=device, damping=damping)
+        metrics = evaluate_metrics(model, retain_loader, forget_loader, test_loader, device=device)
+        
+        return jsonify({"message": f"Second-order LiSSA unlearning executed on model.fc (damping={damping})", "metrics": metrics})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/reset', methods=['POST'])
 def reset_model():
     global model
-    if os.path.exists(BASELINE_PATH):
-        model.load_state_dict(torch.load(BASELINE_PATH, map_location=device))
-        metrics = evaluate_metrics(model, retain_loader, forget_loader, test_loader, device)
-        return jsonify({"message": "Model successfully reset to clean 5,000-sample baseline.", "metrics": metrics})
-    else:
-        return jsonify({"error": f"No {BASELINE_PATH} file found to reset from."}), 400
+    try:
+        path = BASELINE_PATH if os.path.exists(BASELINE_PATH) else ("baseline.pth" if os.path.exists("baseline.pth") else None)
+        if path:
+            model.load_state_dict(torch.load(path, map_location=device))
+            metrics = evaluate_metrics(model, retain_loader, forget_loader, test_loader, device=device)
+            return jsonify({"message": f"Model successfully reset to clean baseline ({path}).", "metrics": metrics})
+        else:
+            return jsonify({"error": "No baseline file (baseline_5k.pth or baseline.pth) found to reset from."}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/evaluate', methods=['GET'])
 def get_evaluation():
